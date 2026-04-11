@@ -1,9 +1,24 @@
 """
 cnn_model.py
 
-CNN model training and evaluation on CIFAR-10.
-Reads preprocessed .npy files from DataFiles/ and
-saves plots to FigureFiles/.
+Authors: Amy Nguyen & Nick Pham
+Course: CSCE 478
+
+Functionality:
+- Loads preprocessed datasets (.npy files) from the DataFiles/ directory
+- Applies data augmentation during training
+- Builds and trains a CNN with batch normalization and dropout
+- Evaluates performance using accuracy, macro-F1 score, and a classification report
+- Generates and saves visualizations:
+    * Training/validation accuracy and loss curves
+    * Normalized confusion matrix
+    * Per-class accuracy comparison (CNN vs Logistic Regression baseline)
+    * Misclassified image examples
+    * Grad-CAM heatmaps for model interpretability
+    * t-SNE visualization of learned feature representations
+
+Outputs:
+- All figures are saved to the FigureFiles/ directory
 """
 
 import os
@@ -29,6 +44,7 @@ CLASS_NAMES = [
 
 os.makedirs(FIG_DIR, exist_ok=True)
 
+#========================MODEL DEFINITION========================#
 
 def load_data():
     X_train = np.load(f"{DATA_DIR}/X_train.npy")
@@ -39,7 +55,7 @@ def load_data():
     print(f"Loaded data — Train: {X_train.shape}, Test: {X_test.shape}")
     return X_train, X_test, y_train, y_test
 
-
+# Create a data augmentation pipeline using Keras preprocessing layers.
 def create_augmentation():
     return tf.keras.Sequential([
         layers.RandomFlip("horizontal"),
@@ -47,7 +63,7 @@ def create_augmentation():
         layers.RandomZoom(0.1),
     ])
 
-
+# Build a simple CNN architecture, compile it, and print the summary.
 def build_cnn():
     model = models.Sequential([
         # block 1
@@ -84,7 +100,9 @@ def build_cnn():
     model.summary()
     return model
 
+#========================TRAINING & EVALUATION========================#
 
+# Train the model with data augmentation and return the training history.
 def train(model, X_train, y_train):
     augmenter = create_augmentation()
 
@@ -95,7 +113,7 @@ def train(model, X_train, y_train):
     )
     return history
 
-
+# Plot training/validation accuracy and loss curves, and save the figure.
 def plot_training(history):
     plt.figure(figsize=(8, 5))
     plt.plot(history.history['accuracy'], label='Train Accuracy')
@@ -112,6 +130,7 @@ def plot_training(history):
     print("Saved training curve.")
 
 
+# Evaluate the model on the test set, print metrics, and save a confusion matrix.
 def evaluate(model, X_test, y_test):
     print("\nEvaluating CNN...")
 
@@ -126,7 +145,6 @@ def evaluate(model, X_test, y_test):
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred, target_names=CLASS_NAMES))
 
-    # confusion matrix
     cm = confusion_matrix(y_test, y_pred)
     cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
 
@@ -140,7 +158,6 @@ def evaluate(model, X_test, y_test):
     plt.close()
     print("Saved confusion matrix.")
 
-    # bootstrap confidence intervals (1000 resamples)
     rng = np.random.default_rng(42)
     n = len(y_test)
     accs, f1s = [], []
@@ -156,13 +173,13 @@ def evaluate(model, X_test, y_test):
     print(f"\n95% CI — Accuracy: [{acc_ci[0]:.4f}, {acc_ci[1]:.4f}]")
     print(f"95% CI — Macro-F1: [{f1_ci[0]:.4f}, {f1_ci[1]:.4f}]")
 
+#========================ADDITIONAL VISUALIZATIONS========================#
 
+# Compare per-class accuracy between logistic regression and the CNN.
 def plot_baseline_vs_cnn(model, X_test, y_test):
-    """Compare per-class accuracy between logistic regression and the CNN."""
-
     y_pred_cnn = np.argmax(model.predict(X_test, verbose=0), axis=1)
 
-    # train a quick logistic regression baseline (same setup as preprocessing script)
+    # train a quick logistic regression baseline on the flattened data for comparison
     X_train_flat = np.load(f"{DATA_DIR}/X_train_flat.npy")
     X_test_flat  = np.load(f"{DATA_DIR}/X_test_flat.npy")
     y_train_all  = np.load(f"{DATA_DIR}/y_train.npy")
@@ -209,10 +226,8 @@ def plot_baseline_vs_cnn(model, X_test, y_test):
     plt.close()
     print("Saved baseline vs CNN comparison.")
 
-
+# Show a grid of 20 misclassified images with their true/pred labels and confidence.
 def plot_misclassified(model, X_test, y_test):
-    """Show a 4x5 grid of images the CNN got wrong."""
-
     y_probs = model.predict(X_test, verbose=0)
     y_pred  = np.argmax(y_probs, axis=1)
     wrong   = np.where(y_pred != y_test)[0]
@@ -241,12 +256,9 @@ def plot_misclassified(model, X_test, y_test):
     plt.close()
     print("Saved misclassified examples.")
 
-
+# Grad-CAM implementation, returns a heatmap for a single image and convolutional layer.
 def _gradcam_heatmap(model, img_array, conv_layer_name):
-    """Grad-CAM for a single image — returns a 2D heatmap."""
-
-    # rebuild as functional model (Keras 3 doesn't expose .input on Sequential)
-    inp = tf.keras.Input(shape=(32, 32, 3))
+    inp = tf.keras.Input(shape=(32, 32, 3)) # rebuild as functional model to extract conv features
     x = inp
     conv_output = None
     for layer in model.layers:
@@ -268,11 +280,8 @@ def _gradcam_heatmap(model, img_array, conv_layer_name):
     heatmap = tf.maximum(heatmap, 0) / (tf.math.reduce_max(heatmap) + 1e-8)
     return heatmap.numpy()
 
-
+# Grad-CAM visualization: overlay heatmaps on one sample per class.
 def plot_gradcam(model, X_test, y_test):
-    """Overlay Grad-CAM heatmaps on one sample per class."""
-
-    # grab the last conv layer
     last_conv = None
     for layer in reversed(model.layers):
         if isinstance(layer, layers.Conv2D):
@@ -303,14 +312,11 @@ def plot_gradcam(model, X_test, y_test):
     plt.close()
     print("Saved Grad-CAM heatmaps.")
 
-
+# Run t-SNE on the penultimate layer features and scatter-plot them.
 def plot_tsne(model, X_test, y_test):
-    """Run t-SNE on the penultimate layer features and scatter-plot them."""
-
-    # rebuild as functional model to extract penultimate features
-    inp = tf.keras.Input(shape=(32, 32, 3))
+    inp = tf.keras.Input(shape=(32, 32, 3)) # rebuild as functional model to extract penultimate features
     x = inp
-    for layer in model.layers[:-1]:  # everything except final Dense(10)
+    for layer in model.layers[:-1]:
         x = layer(x)
     feature_model = tf.keras.Model(inputs=inp, outputs=x)
 
@@ -344,7 +350,7 @@ def plot_tsne(model, X_test, y_test):
     print("Saved t-SNE plot.")
 
 
-# -----------------------------------------------
+#========================MAIN========================#
 
 def main():
     X_train, X_test, y_train, y_test = load_data()
