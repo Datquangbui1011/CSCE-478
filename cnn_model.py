@@ -34,6 +34,9 @@ from sklearn.metrics import (
 from sklearn.manifold import TSNE
 from sklearn.linear_model import LogisticRegression
 
+np.random.seed(42)
+tf.random.set_seed(42)
+
 DATA_DIR = "DataFiles"
 FIG_DIR  = "FigureFiles"
 
@@ -187,7 +190,7 @@ def plot_baseline_vs_cnn(model, X_test, y_test):
     print("Training baseline logreg for comparison...")
     baseline = LogisticRegression(
         max_iter=1000, C=0.01, solver='saga',
-        multi_class='multinomial', random_state=42, n_jobs=-1
+        random_state=42, n_jobs=-1
     )
     baseline.fit(X_train_flat[:10000], y_train_all[:10000])
     y_pred_bl = baseline.predict(X_test_flat)

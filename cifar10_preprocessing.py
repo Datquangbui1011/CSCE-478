@@ -86,7 +86,7 @@ def explore_data(X_train, y_train):
         print(f"  Class {i} ({name:>12}): {count} images")
 
     print("\nNaN in train:", np.isnan(X_train.astype('float32')).any())
-    print("NaN in test :", np.isnan(X_train.astype('float32')).any())
+    print("NaN in test :", np.isnan(X_test.astype('float32')).any())
     print("Label range  :", y_flat.min(), "-", y_flat.max())
 
 
@@ -177,7 +177,6 @@ def train_baseline(X_train_flat, y_train_flat):
         max_iter=1000,
         C=0.01,
         solver='saga',
-        multi_class='multinomial',
         random_state=42,
         n_jobs=-1
     )
