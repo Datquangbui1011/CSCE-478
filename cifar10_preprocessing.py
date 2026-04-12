@@ -230,7 +230,6 @@ def evaluate(model, X_test_flat, y_test_flat):
     ci_lo = np.percentile(boot_accs, 2.5)
     ci_hi = np.percentile(boot_accs, 97.5)
 
-    print("\n>>> Share these numbers <<<")
     print(f"Accuracy : {acc:.4f}")
     print(f"95% CI   : [{ci_lo:.4f}, {ci_hi:.4f}]")
 
@@ -276,7 +275,7 @@ def main():
                y_train_flat, y_test_flat)
 
     print("\n" + "=" * 50)
-    print(" DONE — Everything saved in folders!")
+    print(" DONE — Everything saved in folders.")
     print("=" * 50)
 
 
