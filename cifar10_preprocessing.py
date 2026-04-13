@@ -1,31 +1,25 @@
 """
 cifar10_preprocessing.py
-
 Author: Dat Bui
 Course: CSCE 478
 
-Functionality:
-- Loads the CIFAR-10 dataset using Keras
-- Explores dataset structure, class distribution, and data integrity
-- Visualizes sample images and class distribution
-- Preprocesses data by normalizing pixel values and flattening inputs
-- Trains a Logistic Regression (softmax) baseline model
-- Evaluates performance using accuracy and a classification report
-- Computes a normalized confusion matrix and 95% confidence interval
-- Saves processed datasets for downstream CNN training
+This handles the data side of our CIFAR-10 project.
+Loads the dataset, checks for any issues, normalizes pixels
+to [0,1], and trains a logistic regression baseline so we
+have something to compare the CNN against.
 
-Outputs:
-- DataFiles/
-    * X_train.npy          (50000, 32, 32, 3)
-    * X_test.npy           (10000, 32, 32, 3)
-    * X_train_flat.npy     (50000, 3072)
-    * X_test_flat.npy      (10000, 3072)
-    * y_train.npy          (50000,)
-    * y_test.npy           (10000,)
-- FigureFiles/
-    * cifar10_samples.png
-    * class_distribution.png
-    * baseline_confusion_matrix.png
+Also flattens the images to 1D vectors (3072 features) since
+logreg can't take 2D image input. Everything gets saved as
+.npy files so cnn_model.py can pick them up.
+
+Saved to DataFiles/:
+  X_train.npy, X_test.npy          (normalized images)
+  X_train_flat.npy, X_test_flat.npy (flattened for logreg)
+  y_train.npy, y_test.npy          (labels)
+
+Figures saved to FigureFiles/:
+  cifar10_samples.png, class_distribution.png,
+  baseline_confusion_matrix.png
 """
 
 import os
@@ -43,16 +37,16 @@ CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck']
 
 
-#========================CREATE FOLDERS========================#
+# --- setup ---
 
 def create_folders():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(FIG_DIR, exist_ok=True)
 
 
-#========================LOAD DATA========================#
+# --- load & explore ---
 
-# Load the CIFAR-10 dataset and print basic information about the shapes and pixel ranges.
+
 def load_data():
     print("=" * 50)
     print(" STEP 1 — Loading CIFAR-10 Dataset")
@@ -70,9 +64,9 @@ def load_data():
     return X_train, y_train, X_test, y_test
 
 
-#========================EXPLORE DATA========================#
 
-# Explore the dataset by printing class distribution, checking for NaN values, and verifying label ranges.
+
+# check class counts, NaNs, label range
 def explore_data(X_train, y_train):
     print("\n" + "=" * 50)
     print(" STEP 2 — Exploring Data")
@@ -90,9 +84,9 @@ def explore_data(X_train, y_train):
     print("Label range  :", y_flat.min(), "-", y_flat.max())
 
 
-#========================VISUALIZE SAMPLES========================#
+# --- visualization ---
 
-# Visualize one sample image from each class and the overall class distribution as a bar chart. Save both figures.
+# sample grid + class distribution bar chart
 def visualize_samples(X_train, y_train):
     print("\n" + "=" * 50)
     print(" STEP 3 — Visualizing Sample Images")
@@ -136,10 +130,9 @@ def visualize_samples(X_train, y_train):
     print(f"Saved: {FIG_DIR}/class_distribution.png")
 
 
-#========================PREPROCESS DATA========================#
+# --- preprocessing ---
 
-# Normalize pixel values to [0, 1], flatten the images for logistic regression, 
-# and flatten the labels. Print shapes and value ranges after each step.
+# normalize to [0,1] and flatten for logreg
 def preprocess(X_train, y_train, X_test, y_test):
     print("\n" + "=" * 50)
     print(" STEP 4 — Preprocessing")
@@ -165,9 +158,9 @@ def preprocess(X_train, y_train, X_test, y_test):
     return X_train, X_test, X_train_flat, X_test_flat, y_train_flat, y_test_flat
 
 
-#========================TRAIN BASELINE MODEL========================#
+# --- baseline model ---
 
-# Train a Logistic Regression model on the flattened training data and return the trained model.
+# only using 10k samples since full 50k takes forever
 def train_baseline(X_train_flat, y_train_flat):
     print("\n" + "=" * 50)
     print(" STEP 5 — Training Softmax Baseline")
@@ -188,10 +181,9 @@ def train_baseline(X_train_flat, y_train_flat):
     return model
 
 
-#=========================EVALUATE BASELINE MODEL========================#
 
-# Evaluate the baseline model on the test set, print accuracy, classification report, 
-# and save a normalized confusion matrix. Also compute a 95% confidence interval using bootstrapping.
+
+
 def evaluate(model, X_test_flat, y_test_flat):
     print("\n" + "=" * 50)
     print(" STEP 6 — Evaluating Baseline Model")
@@ -235,9 +227,9 @@ def evaluate(model, X_test_flat, y_test_flat):
     return acc, ci_lo, ci_hi
 
 
-#========================SAVE PROCESSED FILES========================#
+# --- save everything ---
 
-# Save the processed datasets as .npy files for later use in CNN training.
+# save as .npy so cnn_model.py can load them
 def save_files(X_train, X_test, X_train_flat, X_test_flat,
                y_train_flat, y_test_flat):
 
@@ -255,7 +247,7 @@ def save_files(X_train, X_test, X_train_flat, X_test_flat,
     print(f"Saved all .npy files in {DATA_DIR}/")
 
 
-#========================MAIN FUNCTION========================#
+# ---
 
 def main():
     create_folders()

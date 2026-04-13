@@ -1,24 +1,23 @@
 """
 cnn_model.py
-
 Authors: Amy Nguyen & Nick Pham
 Course: CSCE 478
 
-Functionality:
-- Loads preprocessed datasets (.npy files) from the DataFiles/ directory
-- Applies data augmentation during training
-- Builds and trains a CNN with batch normalization and dropout
-- Evaluates performance using accuracy, macro-F1 score, and a classification report
-- Generates and saves visualizations:
-    * Training/validation accuracy and loss curves
-    * Normalized confusion matrix
-    * Per-class accuracy comparison (CNN vs Logistic Regression baseline)
-    * Misclassified image examples
-    * Grad-CAM heatmaps for model interpretability
-    * t-SNE visualization of learned feature representations
+This script handles the CNN side of our CIFAR-10 project.
+It loads the preprocessed .npy files that cifar10_preprocessing.py
+saved into DataFiles/, then builds and trains a 3-block CNN with
+batch norm and dropout.
 
-Outputs:
-- All figures are saved to the FigureFiles/ directory
+After training, it runs a bunch of evaluation stuff:
+- Prints accuracy, F1, and classification report
+- Saves a normalized confusion matrix
+- Computes bootstrap confidence intervals (1000 resamples)
+- Trains a quick logreg baseline so we can compare per-class accuracy
+- Plots misclassified examples to see where the model messes up
+- Generates Grad-CAM heatmaps to visualize what the CNN looks at
+- Runs t-SNE on the penultimate layer to see how well classes separate
+
+All figures get saved to FigureFiles/.
 """
 
 import os
@@ -47,7 +46,7 @@ CLASS_NAMES = [
 
 os.makedirs(FIG_DIR, exist_ok=True)
 
-#========================MODEL DEFINITION========================#
+# --- model setup ---
 
 def load_data():
     X_train = np.load(f"{DATA_DIR}/X_train.npy")
@@ -58,7 +57,7 @@ def load_data():
     print(f"Loaded data — Train: {X_train.shape}, Test: {X_test.shape}")
     return X_train, X_test, y_train, y_test
 
-# Create a data augmentation pipeline using Keras preprocessing layers.
+# augmentation to reduce overfitting
 def create_augmentation():
     return tf.keras.Sequential([
         layers.RandomFlip("horizontal"),
@@ -66,7 +65,7 @@ def create_augmentation():
         layers.RandomZoom(0.1),
     ])
 
-# Build a simple CNN architecture, compile it, and print the summary.
+
 def build_cnn():
     model = models.Sequential([
         # block 1
@@ -103,9 +102,9 @@ def build_cnn():
     model.summary()
     return model
 
-#========================TRAINING & EVALUATION========================#
+# --- training & eval ---
 
-# Train the model with data augmentation and return the training history.
+
 def train(model, X_train, y_train):
     augmenter = create_augmentation()
 
@@ -116,7 +115,7 @@ def train(model, X_train, y_train):
     )
     return history
 
-# Plot training/validation accuracy and loss curves, and save the figure.
+
 def plot_training(history):
     plt.figure(figsize=(8, 5))
     plt.plot(history.history['accuracy'], label='Train Accuracy')
@@ -133,7 +132,7 @@ def plot_training(history):
     print("Saved training curve.")
 
 
-# Evaluate the model on the test set, print metrics, and save a confusion matrix.
+
 def evaluate(model, X_test, y_test):
     print("\nEvaluating CNN...")
 
@@ -176,13 +175,13 @@ def evaluate(model, X_test, y_test):
     print(f"\n95% CI — Accuracy: [{acc_ci[0]:.4f}, {acc_ci[1]:.4f}]")
     print(f"95% CI — Macro-F1: [{f1_ci[0]:.4f}, {f1_ci[1]:.4f}]")
 
-#========================ADDITIONAL VISUALIZATIONS========================#
+# --- extra plots for the report ---
 
-# Compare per-class accuracy between logistic regression and the CNN.
+
 def plot_baseline_vs_cnn(model, X_test, y_test):
     y_pred_cnn = np.argmax(model.predict(X_test, verbose=0), axis=1)
 
-    # train a quick logistic regression baseline on the flattened data for comparison
+    # quick baseline logreg for comparison
     X_train_flat = np.load(f"{DATA_DIR}/X_train_flat.npy")
     X_test_flat  = np.load(f"{DATA_DIR}/X_test_flat.npy")
     y_train_all  = np.load(f"{DATA_DIR}/y_train.npy")
@@ -229,7 +228,7 @@ def plot_baseline_vs_cnn(model, X_test, y_test):
     plt.close()
     print("Saved baseline vs CNN comparison.")
 
-# Show a grid of 20 misclassified images with their true/pred labels and confidence.
+
 def plot_misclassified(model, X_test, y_test):
     y_probs = model.predict(X_test, verbose=0)
     y_pred  = np.argmax(y_probs, axis=1)
@@ -259,9 +258,9 @@ def plot_misclassified(model, X_test, y_test):
     plt.close()
     print("Saved misclassified examples.")
 
-# Grad-CAM implementation, returns a heatmap for a single image and convolutional layer.
+
 def _gradcam_heatmap(model, img_array, conv_layer_name):
-    inp = tf.keras.Input(shape=(32, 32, 3)) # rebuild as functional model to extract conv features
+    inp = tf.keras.Input(shape=(32, 32, 3)) # need functional model for keras 3
     x = inp
     conv_output = None
     for layer in model.layers:
@@ -283,7 +282,7 @@ def _gradcam_heatmap(model, img_array, conv_layer_name):
     heatmap = tf.maximum(heatmap, 0) / (tf.math.reduce_max(heatmap) + 1e-8)
     return heatmap.numpy()
 
-# Grad-CAM visualization: overlay heatmaps on one sample per class.
+
 def plot_gradcam(model, X_test, y_test):
     last_conv = None
     for layer in reversed(model.layers):
@@ -315,9 +314,9 @@ def plot_gradcam(model, X_test, y_test):
     plt.close()
     print("Saved Grad-CAM heatmaps.")
 
-# Run t-SNE on the penultimate layer features and scatter-plot them.
+
 def plot_tsne(model, X_test, y_test):
-    inp = tf.keras.Input(shape=(32, 32, 3)) # rebuild as functional model to extract penultimate features
+    inp = tf.keras.Input(shape=(32, 32, 3)) # need functional model for keras 3
     x = inp
     for layer in model.layers[:-1]:
         x = layer(x)
@@ -353,7 +352,7 @@ def plot_tsne(model, X_test, y_test):
     print("Saved t-SNE plot.")
 
 
-#========================MAIN========================#
+# ---
 
 def main():
     X_train, X_test, y_train, y_test = load_data()
@@ -364,7 +363,7 @@ def main():
     plot_training(history)
     evaluate(model, X_test, y_test)
 
-    # additional visualizations
+    # extra plots
     plot_baseline_vs_cnn(model, X_test, y_test)
     plot_misclassified(model, X_test, y_test)
     plot_gradcam(model, X_test, y_test)
